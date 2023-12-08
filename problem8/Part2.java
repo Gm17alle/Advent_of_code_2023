@@ -72,20 +72,24 @@ public class Part2
     }
 
     // Function to find the LCM of two numbers
-    public static int lcm(int a, int b) {
-        return (a * b) / gcd(a, b);
+    public static BigInteger lcm(BigInteger a, BigInteger b) {
+        return a.multiply(b).divide(a.gcd(b));
     }
 
-    // Function to find the LCM of a list of integers
-    public static int findLCM(List<Integer> numbers) {
+    // Function to find the LCM of a list of BigIntegers
+    public static BigInteger findLCM(List<Integer> numbers) {
         if (numbers == null || numbers.isEmpty()) {
             throw new IllegalArgumentException("List cannot be null or empty");
         }
 
-        int lcmResult = numbers.get(0);
-        for (int i = 1; i < numbers.size(); i++) {
-            int currentNumber = numbers.get(i);
-            lcmResult = lcm(lcmResult, currentNumber);
+        List<BigInteger> bigIntegers = new ArrayList<>();
+        for (Integer num : numbers) {
+            bigIntegers.add(new BigInteger("" + num));
+        }
+
+        BigInteger lcmResult = bigIntegers.get(0);
+        for (int i = 1; i < bigIntegers.size(); i++) {
+            lcmResult = lcm(lcmResult, bigIntegers.get(i));
         }
         return lcmResult;
     }
