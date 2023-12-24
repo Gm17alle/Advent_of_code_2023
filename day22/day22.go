@@ -10,12 +10,7 @@ import (
 )
 
 func main() {
-	bricks, err := readBricksFromFile("day22/testinput.txt")
-	if err != nil {
-		fmt.Println(err)
-	} else {
-		fmt.Printf("%+v", bricks)
-	}
+	bricks, _ := readBricksFromFile("day22/input.txt")
 
 	mX, mY, mZ := -1, -1, -1
 	for _, b := range bricks {
@@ -43,6 +38,7 @@ func main() {
 	}
 
 	for i, b := range bricks {
+		bricks[i].gridVal = i
 		if b.start.x != b.end.x {
 			for x := min(b.start.x, b.end.x); x <= max(b.start.x, b.end.x); x++ {
 				grid[x][b.start.y][b.start.z] = i
@@ -62,6 +58,7 @@ func main() {
 	sortByLowerZ(bricks)
 
 	// Drop bricks by sorted Z order
+	newBricks := make([]brick, 0)
 	for _, b := range bricks {
 		v := grid[b.minX()][b.minY()][b.minZ()]
 		if b.start.z != b.end.z {
@@ -72,9 +69,11 @@ func main() {
 			for zBottom-1 > 0 && grid[b.minX()][b.minY()][zBottom-1] == -1 {
 				grid[x][y][zBottom-1] = v
 				grid[x][y][zTop] = -1
+				zBottom--
+				zTop--
+				b.start.z = b.start.z - 1
+				b.end.z = b.end.z - 1
 			}
-			b.start.z = b.start.z - 1
-			b.end.z = b.end.z - 1
 		} else {
 			z := b.minZ()
 			for z > 1 && isEmptyBelow(b, grid) {
@@ -89,11 +88,160 @@ func main() {
 				b.end.z = b.end.z - 1
 			}
 		}
+		newBricks = append(newBricks, b)
 	}
 
 	// See what bricks can be removed
 	// Maybe make a map from brick to list of bricks supporting?
-	fmt.Printf("The answer is %d", mX)
+
+	supporting := make(map[int]map[int]bool)
+	supportedBy := make(map[int]map[int]bool)
+
+	for i := 0; i < len(grid); i++ {
+		for j := 0; j < len(grid[0]); j++ {
+			for k := 0; k < len(grid[0][0])-1; k++ {
+				v := grid[i][j][k]
+				above := grid[i][j][k+1]
+				if grid[i][j][k] != -1 && grid[i][j][k+1] != -1 && v != above {
+					if _, e := supporting[v]; !e {
+						supporting[v] = make(map[int]bool)
+					}
+					supporting[v][above] = true
+
+					if _, e := supportedBy[above]; !e {
+						supportedBy[above] = make(map[int]bool)
+					}
+					supportedBy[above][v] = true
+				}
+			}
+		}
+	}
+
+	count := 0
+	necessaryBricks := make([]int, 0)
+	for i := 0; i < len(bricks); i++ {
+		if above, e := supporting[i]; !e {
+			fmt.Printf("Brick %d not supporting anything\n", i)
+			count++
+		} else {
+			ok := true
+			for c, _ := range above {
+				if len(supportedBy[c]) < 2 {
+					ok = false
+					break
+				}
+			}
+			if ok {
+				fmt.Printf("Brick %d is redundant \n", i)
+				count++
+			} else {
+				fmt.Printf("Brick %d is necessary \n", i)
+				necessaryBricks = append(necessaryBricks, i)
+			}
+		}
+	}
+
+	fmt.Printf("The answer is %d", count)
+
+	//howManyWouldFall := 0
+	//for _, i := range necessaryBricks {
+	//	visited := make(map[int]bool)
+	//	q := make([]int, 0)
+	//	for v, _ := range supporting[i] {
+	//		q = append(q, v)
+	//	}
+	//	for len(q) > 0 {
+	//		curBrick := q[0]
+	//		q = q[1:]
+	//		if visited[curBrick] {
+	//			continue
+	//		}
+	//
+	//		howManyWouldFall++
+	//		visited[curBrick] = true
+	//		for k, _ := range supporting[curBrick] {
+	//			if !visited[k] {
+	//				q = append(q, k)
+	//			}
+	//		}
+	//	}
+	//}
+
+	p2 := 0
+	for _, curBrick := range newBricks {
+		newNewBricks := make([]brick, 0)
+		for _, b := range newBricks {
+			if curBrick.gridVal != b.gridVal {
+				newNewBricks = append(newNewBricks, b)
+			}
+		}
+		newGrid := deepCopyWithReplacedValue(grid, curBrick.gridVal)
+		//fmt.Printf("%+v%+v", newGrid, newNewBricks)
+		p2 += countFallDowns(newNewBricks, newGrid)
+
+	}
+	fmt.Printf("\n Part 2: %d", p2)
+}
+
+func countFallDowns(bricks []brick, grid [][][]int) int {
+	count := 0
+	for _, b := range bricks {
+		wentDown := false
+		v := grid[b.minX()][b.minY()][b.minZ()]
+		if b.start.z != b.end.z {
+			x := b.minX()
+			y := b.minY()
+			zBottom := b.minZ()
+			zTop := b.maxZ()
+			for zBottom-1 > 0 && grid[b.minX()][b.minY()][zBottom-1] == -1 {
+				wentDown = true
+				grid[x][y][zBottom-1] = v
+				grid[x][y][zTop] = -1
+				zBottom--
+				zTop--
+				b.start.z = b.start.z - 1
+				b.end.z = b.end.z - 1
+			}
+		} else {
+			z := b.minZ()
+			for z > 1 && isEmptyBelow(b, grid) {
+				wentDown = true
+				for i := b.minX(); i <= b.maxX(); i++ {
+					for j := b.minY(); j <= b.maxY(); j++ {
+						grid[i][j][z-1] = v
+						grid[i][j][z] = -1
+					}
+				}
+				z--
+				b.start.z = b.start.z - 1
+				b.end.z = b.end.z - 1
+			}
+		}
+		if wentDown {
+			count++
+		}
+	}
+	return count
+}
+
+func deepCopyWithReplacedValue(arr [][][]int, toSetToNegativeOne int) [][][]int {
+	copyArr := make([][][]int, len(arr))
+
+	for i := range arr {
+		copyArr[i] = make([][]int, len(arr[i]))
+		for j := range arr[i] {
+			copyArr[i][j] = make([]int, len(arr[i][j]))
+			for k := range arr[i][j] {
+				if arr[i][j][k] == toSetToNegativeOne {
+					copyArr[i][j][k] = -1
+				} else {
+					copyArr[i][j][k] = arr[i][j][k]
+				}
+			}
+		}
+	}
+
+	return copyArr
 }
 
 func isEmptyBelow(b brick, grid [][][]int) bool {
@@ -127,8 +275,9 @@ type point struct {
 }
 
 type brick struct {
-	start point
-	end   point
+	gridVal int
+	start   point
+	end     point
 }
 
 func (b brick) minX() int {
